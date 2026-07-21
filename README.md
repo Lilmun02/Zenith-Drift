@@ -22,3 +22,4 @@ No environment variables or external services are required for the recovery scaf
 ## Current scope
 
 This recovery milestone provides only a verified application shell and a minimal Babylon.js scene. It intentionally contains no gameplay, backend, persistence, or signature mechanic.
+
