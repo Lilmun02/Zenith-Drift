@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --configLoader runner",
     "build": "tsc -b && vite build --configLoader runner",
+    "test": "node --test --experimental-strip-types src/game/rules/*.test.ts",
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview --configLoader runner"
   },

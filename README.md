@@ -12,6 +12,7 @@ Web-based prototype scaffold for **Zenith Drift**, using React for interface com
 ```bash
 npm install
 npm run dev
+npm test
 npm run typecheck
 npm run build
 npm run preview
@@ -21,5 +22,13 @@ No environment variables or external services are required for the recovery scaf
 
 ## Current scope
 
-This recovery milestone provides only a verified application shell and a minimal Babylon.js scene. It intentionally contains no gameplay, backend, persistence, or signature mechanic.
+The current gameplay foundation includes configurable arcade flight, keyboard input, a chase camera, prototype current filaments, Driftweave tension/release, and a diagnostic HUD. It intentionally contains no backend, persistence, resource economy, upgrades, or production assets.
+
+## Prototype controls
+
+- `W` / `S`: pitch
+- `A` / `D`: yaw
+- `Q` / `E`: roll
+- `Shift` / `Ctrl`: throttle
+- Hold `Space` while between the current filaments to build Driftweave tension; release to convert it into acceleration.
 
