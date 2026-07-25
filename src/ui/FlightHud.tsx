@@ -18,7 +18,7 @@ export function FlightHud({ telemetry }: FlightHudProps) {
       <p className={telemetry.insideCurrent ? "current-status active" : "current-status"}>
         {telemetry.insideCurrent ? "CURRENT CAPTURE RANGE" : "SEEK CURRENT FILAMENTS"}
       </p>
-      <p className="controls">W/S pitch Â· A/D yaw Â· Q/E roll<br />Shift/Ctrl throttle Â· Hold Space to weave</p>
+      <p className="controls">W/S pitch · A/D yaw · Q/E roll<br />Shift/Ctrl throttle · Hold Space to weave</p>
     </aside>
   );
 }

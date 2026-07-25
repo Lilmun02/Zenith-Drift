@@ -22,7 +22,7 @@ export function App() {
       <section className="title-card" aria-label="Prototype status">
         <p className="eyebrow">HIGH-DRIFTS PROTOTYPE</p>
         <h1>ZENITH DRIFT</h1>
-        <p>Engine recovery scaffold online</p>
+        <p>Crownreach Approach · High-Drifts Region</p>
       </section>
       <FlightHud telemetry={telemetry} />
     </main>

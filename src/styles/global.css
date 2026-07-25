@@ -41,7 +41,7 @@ canvas {
 .title-card {
   position: absolute;
   left: clamp(1.5rem, 5vw, 4rem);
-  bottom: clamp(1.5rem, 7vh, 4.5rem);
+  bottom: clamp(1rem, 4vh, 2.5rem);
   pointer-events: none;
   text-shadow: 0 2px 20px rgb(0 0 0 / 70%);
 }
@@ -53,14 +53,14 @@ canvas {
 
 .title-card h1 {
   margin-block: 0.25rem;
-  font-size: clamp(2.25rem, 7vw, 5.5rem);
+  font-size: clamp(1.35rem, 3vw, 2.25rem);
   font-weight: 650;
   letter-spacing: 0.08em;
 }
 
 .title-card p:last-child {
   color: #aad9df;
-  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  font-size: clamp(0.72rem, 1.4vw, 0.9rem);
 }
 
 .title-card .eyebrow {

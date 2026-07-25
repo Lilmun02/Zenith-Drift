@@ -61,4 +61,3 @@ export interface FlightTelemetry {
   insideCurrent: boolean;
   releaseCount: number;
 }
-

@@ -32,6 +32,7 @@ test("Driftweaving charges only inside the current field", () => {
   const state = createInitialFlightState();
   const input: FlightInput = { ...neutralInput, weave: true, yaw: 1 };
 
+  state.position = { x: flightConfig.currentHalfWidth + 2, y: 0, z: 0 };
   stepFlight(state, input, flightConfig, 1);
   assert.equal(state.weaveTension, 0);
 
@@ -56,4 +57,3 @@ test("releasing a charged weave produces one impulse and clears tension", () => 
   assert.equal(state.weaveTension, 0);
   assert.ok(speedAfterRelease > speedBeforeRelease);
 });
-

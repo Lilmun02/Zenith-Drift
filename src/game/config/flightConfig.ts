@@ -19,9 +19,8 @@ export const flightConfig: FlightConfig = {
   weaveMinimumRelease: 12,
   weaveReleaseImpulse: 12,
   weaveIdleDecayPerSecond: 16,
-  currentHalfWidth: 5,
-  currentHalfHeight: 4,
-  currentStartZ: -8,
-  currentEndZ: 46,
+  currentHalfWidth: 8,
+  currentHalfHeight: 10,
+  currentStartZ: -20,
+  currentEndZ: 420,
 };
-

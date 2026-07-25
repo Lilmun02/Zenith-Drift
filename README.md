@@ -22,7 +22,7 @@ No environment variables or external services are required for the recovery scaf
 
 ## Current scope
 
-The current gameplay foundation includes configurable arcade flight, keyboard input, a chase camera, prototype current filaments, Driftweave tension/release, and a diagnostic HUD. It intentionally contains no backend, persistence, resource economy, upgrades, or production assets.
+The current gameplay foundation includes configurable arcade flight, keyboard input, a chase camera, prototype current filaments, Driftweave tension/release, a diagnostic HUD, and an authored High-Drifts region with the Crownreach skyport, Verdant Terraces, Forgeworks, Ancient Reach, air lanes, clouds, and ambient traffic. It intentionally contains no backend, persistence, resource economy, upgrades, or production assets.
 
 ## Prototype controls
 
@@ -31,4 +31,3 @@ The current gameplay foundation includes configurable arcade flight, keyboard in
 - `Q` / `E`: roll
 - `Shift` / `Ctrl`: throttle
 - Hold `Space` while between the current filaments to build Driftweave tension; release to convert it into acceleration.
-

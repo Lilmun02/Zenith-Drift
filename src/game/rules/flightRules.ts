@@ -121,4 +121,3 @@ export function createTelemetry(state: FlightState, config: FlightConfig): Fligh
     releaseCount: state.releaseCount,
   };
 }
-
