@@ -33,3 +33,4 @@ export function forwardFromRotation(yaw: number, pitch: number): Vec3 {
 export function rightFromYaw(yaw: number): Vec3 {
   return { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
 }
+

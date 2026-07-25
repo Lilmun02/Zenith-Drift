@@ -3,7 +3,7 @@ import type { FlightConfig, FlightInput, FlightState, FlightTelemetry } from "./
 
 export function createInitialFlightState(): FlightState {
   return {
-    position: { x: 0, y: 0, z: -12 },
+    position: { x: 0, y: 38, z: -150 },
     velocity: { x: 0, y: 0, z: 5 },
     yaw: 0,
     pitch: 0,
@@ -121,3 +121,4 @@ export function createTelemetry(state: FlightState, config: FlightConfig): Fligh
     releaseCount: state.releaseCount,
   };
 }
+

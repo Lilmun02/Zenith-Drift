@@ -1,8 +1,11 @@
-import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Vec3 } from "../rules/flightTypes";
 
@@ -12,109 +15,273 @@ export interface HighDriftsWorld {
 }
 
 interface WorldMaterials {
+  terrain: StandardMaterial;
   rock: StandardMaterial;
-  moss: StandardMaterial;
+  water: StandardMaterial;
   road: StandardMaterial;
-  stone: StandardMaterial;
-  metal: StandardMaterial;
+  concrete: StandardMaterial;
+  roof: StandardMaterial;
   glass: StandardMaterial;
-  crystal: StandardMaterial;
+  metal: StandardMaterial;
   foliage: StandardMaterial;
+  foliageDark: StandardMaterial;
   trunk: StandardMaterial;
-  cloud: StandardMaterial;
-  lane: StandardMaterial;
+  sand: StandardMaterial;
+  emissive: StandardMaterial;
 }
 
-const palette = {
-  rock: new Color3(0.17, 0.22, 0.25),
-  moss: new Color3(0.14, 0.32, 0.23),
-  road: new Color3(0.09, 0.13, 0.15),
-  stone: new Color3(0.42, 0.48, 0.47),
-  metal: new Color3(0.2, 0.29, 0.32),
-  glass: new Color3(0.1, 0.4, 0.5),
-  crystal: new Color3(0.18, 0.75, 0.9),
-  foliage: new Color3(0.17, 0.5, 0.34),
-  trunk: new Color3(0.25, 0.18, 0.12),
-  cloud: new Color3(0.82, 0.91, 0.94),
-  lane: new Color3(0.18, 0.85, 0.95),
-};
+const worldCenterZ = 330;
+const worldSize = 1050;
+const terrainBase = -30;
 
-function material(
-  name: string,
-  color: Color3,
+function makeMaterial(
   scene: Scene,
+  name: string,
+  diffuse: Color3,
   emissive = Color3.Black(),
 ): StandardMaterial {
   const value = new StandardMaterial(name, scene);
-  value.diffuseColor = color;
+  value.diffuseColor = diffuse;
   value.emissiveColor = emissive;
-  value.specularColor = color.scale(0.25);
+  value.specularColor = diffuse.scale(0.12);
   return value;
 }
 
 function createMaterials(scene: Scene): WorldMaterials {
-  const cloud = material("cloud-vapor", palette.cloud, scene, new Color3(0.2, 0.26, 0.28));
-  cloud.alpha = 0.2;
-  cloud.disableDepthWrite = true;
-  cloud.backFaceCulling = false;
+  const water = makeMaterial(
+    scene,
+    "drift-sea",
+    new Color3(0.035, 0.21, 0.29),
+    new Color3(0.005, 0.035, 0.05),
+  );
+  water.alpha = 0.92;
 
   return {
-    rock: material("world-rock", palette.rock, scene, new Color3(0.025, 0.03, 0.035)),
-    moss: material("world-moss", palette.moss, scene, new Color3(0.018, 0.04, 0.025)),
-    road: material("skyport-road", palette.road, scene),
-    stone: material("city-stone", palette.stone, scene),
-    metal: material("forge-metal", palette.metal, scene),
-    glass: material("city-glass", palette.glass, scene, new Color3(0.018, 0.12, 0.15)),
-    crystal: material("drift-crystal", palette.crystal, scene, new Color3(0.06, 0.5, 0.7)),
-    foliage: material("verdant-foliage", palette.foliage, scene),
-    trunk: material("verdant-trunk", palette.trunk, scene),
-    cloud,
-    lane: material("air-lane", palette.lane, scene, new Color3(0.04, 0.55, 0.7)),
+    terrain: makeMaterial(scene, "high-drifts-ground", new Color3(0.82, 0.82, 0.78)),
+    rock: makeMaterial(scene, "ridge-rock", new Color3(0.24, 0.26, 0.24)),
+    water,
+    road: makeMaterial(scene, "road-asphalt", new Color3(0.055, 0.065, 0.068)),
+    concrete: makeMaterial(scene, "settlement-stone", new Color3(0.48, 0.45, 0.38)),
+    roof: makeMaterial(scene, "settlement-roof", new Color3(0.24, 0.1, 0.075)),
+    glass: makeMaterial(
+      scene,
+      "settlement-glass",
+      new Color3(0.08, 0.3, 0.36),
+      new Color3(0.008, 0.045, 0.052),
+    ),
+    metal: makeMaterial(scene, "industrial-metal", new Color3(0.18, 0.21, 0.21)),
+    foliage: makeMaterial(scene, "tree-canopy", new Color3(0.1, 0.3, 0.14)),
+    foliageDark: makeMaterial(scene, "tree-canopy-dark", new Color3(0.055, 0.19, 0.09)),
+    trunk: makeMaterial(scene, "tree-trunk", new Color3(0.19, 0.12, 0.07)),
+    sand: makeMaterial(scene, "coastal-sand", new Color3(0.55, 0.48, 0.32)),
+    emissive: makeMaterial(
+      scene,
+      "district-beacons",
+      new Color3(0.25, 0.64, 0.66),
+      new Color3(0.06, 0.3, 0.32),
+    ),
   };
 }
 
-function createPlateau(
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function terrainHeight(x: number, z: number): number {
+  const localZ = z - worldCenterZ;
+  const distance = Math.sqrt((x / 510) ** 2 + (localZ / 500) ** 2);
+  const coast = 1 - smoothstep(0.7, 1, distance);
+  const rolling =
+    Math.sin(x * 0.018) * 4.2 +
+    Math.cos(z * 0.014) * 3.4 +
+    Math.sin((x + z) * 0.009) * 5.4;
+  const westernRidge = Math.exp(-(((x + 300) / 115) ** 2 + ((z - 390) / 260) ** 2)) * 50;
+  const northernRidge = Math.exp(-(((x - 210) / 170) ** 2 + ((z - 690) / 115) ** 2)) * 38;
+  const cityPlain = 1 - smoothstep(80, 210, Math.hypot(x, z - 220));
+  const industrialPlain = 1 - smoothstep(55, 130, Math.hypot(x - 235, z - 390));
+  const flattened = rolling * (1 - cityPlain * 0.9) * (1 - industrialPlain * 0.75);
+  return terrainBase + coast * (26 + flattened + westernRidge + northernRidge);
+}
+
+function createTerrain(
   scene: Scene,
-  parent: TransformNode,
+  root: TransformNode,
+  materials: WorldMaterials,
+): void {
+  const sea = MeshBuilder.CreateGround(
+    "drift-sea",
+    { width: 1900, height: 1900, subdivisions: 1 },
+    scene,
+  );
+  sea.position = new Vector3(0, terrainBase - 2.7, worldCenterZ);
+  sea.parent = root;
+  sea.material = materials.water;
+
+  const terrain = MeshBuilder.CreateGround(
+    "continuous-high-drifts-terrain",
+    { width: worldSize, height: worldSize, subdivisions: 92, updatable: true },
+    scene,
+  );
+  terrain.position.z = worldCenterZ;
+  terrain.parent = root;
+  terrain.material = materials.terrain;
+
+  const positions = terrain.getVerticesData(VertexBuffer.PositionKind);
+  const indices = terrain.getIndices();
+  if (positions && indices) {
+    const colors: number[] = [];
+    for (let index = 0; index < positions.length; index += 3) {
+      const x = positions[index];
+      const z = positions[index + 2] + worldCenterZ;
+      const height = terrainHeight(x, z);
+      positions[index + 1] = height;
+      const variation = Math.sin(x * 0.07) * Math.cos(z * 0.05) * 0.025;
+      const color =
+        height < terrainBase - 0.7
+          ? new Color4(0.48 + variation, 0.4 + variation, 0.25, 1)
+          : height > 9
+            ? new Color4(0.3 + variation, 0.31 + variation, 0.28 + variation, 1)
+            : height > -10
+              ? new Color4(0.18 + variation, 0.34 + variation, 0.18, 1)
+              : new Color4(0.3 + variation, 0.42 + variation, 0.2, 1);
+      colors.push(color.r, color.g, color.b, color.a);
+    }
+    const normals = new Array<number>(positions.length).fill(0);
+    VertexData.ComputeNormals(positions, indices, normals);
+    terrain.updateVerticesData(VertexBuffer.PositionKind, positions);
+    terrain.updateVerticesData(VertexBuffer.NormalKind, normals);
+    terrain.setVerticesData(VertexBuffer.ColorKind, colors);
+    terrain.useVertexColors = true;
+    terrain.refreshBoundingInfo();
+  }
+
+  for (const side of [-1, 1]) {
+    const beach = MeshBuilder.CreateGround(
+      `shoreline-${side}`,
+      { width: 100, height: 500, subdivisions: 1 },
+      scene,
+    );
+    beach.position = new Vector3(side * 470, terrainBase - 1.8, worldCenterZ + 20);
+    beach.rotation.y = side * 0.08;
+    beach.parent = root;
+    beach.material = materials.sand;
+  }
+}
+
+function createRoad(
+  scene: Scene,
+  root: TransformNode,
   materials: WorldMaterials,
   name: string,
-  position: Vector3,
-  radius: number,
-  depth: number,
-  sides = 12,
+  points: Array<[number, number]>,
+  width: number,
 ): void {
-  const rock = MeshBuilder.CreateCylinder(
-    `${name}-mass`,
-    {
-      height: depth,
-      diameterTop: radius * 2,
-      diameterBottom: radius * 0.38,
-      tessellation: sides,
-    },
-    scene,
-  );
-  rock.position = position.add(new Vector3(0, -depth * 0.5, 0));
-  rock.parent = parent;
-  rock.material = materials.rock;
+  const samples: Array<[number, number]> = [];
+  for (let segment = 0; segment < points.length - 1; segment += 1) {
+    const start = points[segment];
+    const end = points[segment + 1];
+    const steps = Math.max(2, Math.ceil(Math.hypot(end[0] - start[0], end[1] - start[1]) / 10));
+    for (let step = 0; step < steps; step += 1) {
+      const t = step / steps;
+      samples.push([
+        start[0] + (end[0] - start[0]) * t,
+        start[1] + (end[1] - start[1]) * t,
+      ]);
+    }
+  }
+  samples.push(points[points.length - 1]);
 
-  const crown = MeshBuilder.CreateCylinder(
-    `${name}-surface`,
-    {
-      height: 1.4,
-      diameterTop: radius * 1.98,
-      diameterBottom: radius * 1.9,
-      tessellation: sides,
-    },
+  const left: Vector3[] = [];
+  const right: Vector3[] = [];
+  for (let index = 0; index < samples.length; index += 1) {
+    const [x, z] = samples[index];
+    const previous = samples[Math.max(0, index - 1)];
+    const next = samples[Math.min(samples.length - 1, index + 1)];
+    const dx = next[0] - previous[0];
+    const dz = next[1] - previous[1];
+    const length = Math.max(0.001, Math.hypot(dx, dz));
+    const offsetX = (-dz / length) * width * 0.5;
+    const offsetZ = (dx / length) * width * 0.5;
+    const y = terrainHeight(x, z) + 0.38;
+    left.push(new Vector3(x + offsetX, y, z + offsetZ));
+    right.push(new Vector3(x - offsetX, y, z - offsetZ));
+  }
+  const road = MeshBuilder.CreateRibbon(
+    name,
+    { pathArray: [left, right], sideOrientation: Mesh.DOUBLESIDE },
     scene,
   );
-  crown.position = position.add(new Vector3(0, 0.3, 0));
-  crown.parent = parent;
-  crown.material = materials.moss;
+  road.parent = root;
+  road.material = materials.road;
+}
+
+function createRoadNetwork(
+  scene: Scene,
+  root: TransformNode,
+  materials: WorldMaterials,
+): void {
+  createRoad(
+    scene,
+    root,
+    materials,
+    "coastal-highway",
+    [
+      [-30, -80],
+      [-18, 20],
+      [-8, 110],
+      [0, 210],
+      [25, 310],
+      [95, 380],
+      [190, 410],
+      [285, 390],
+      [350, 330],
+      [390, 240],
+    ],
+    15,
+  );
+  createRoad(
+    scene,
+    root,
+    materials,
+    "western-ridge-road",
+    [
+      [-5, 205],
+      [-85, 245],
+      [-155, 310],
+      [-190, 400],
+      [-150, 500],
+      [-70, 575],
+      [30, 625],
+    ],
+    11,
+  );
+  createRoad(
+    scene,
+    root,
+    materials,
+    "northern-connector",
+    [
+      [5, 215],
+      [80, 250],
+      [150, 305],
+      [230, 385],
+      [245, 500],
+      [205, 610],
+    ],
+    12,
+  );
+  for (const x of [-70, -35, 0, 35, 70]) {
+    createRoad(scene, root, materials, `crownreach-street-x-${x}`, [[x, 145], [x, 285]], 7);
+  }
+  for (const z of [155, 190, 225, 260]) {
+    createRoad(scene, root, materials, `crownreach-street-z-${z}`, [[-88, z], [88, z]], 7);
+  }
 }
 
 function createBuilding(
   scene: Scene,
-  parent: TransformNode,
+  root: TransformNode,
   materials: WorldMaterials,
   name: string,
   x: number,
@@ -122,251 +289,198 @@ function createBuilding(
   width: number,
   depth: number,
   height: number,
+  tower = false,
 ): void {
-  const building = MeshBuilder.CreateBox(name, { width, depth, height }, scene);
-  building.position = new Vector3(x, height * 0.5 - 6.5, z);
-  building.parent = parent;
-  building.material = height > 24 ? materials.glass : materials.stone;
+  const ground = terrainHeight(x, z);
+  const body = tower
+    ? MeshBuilder.CreateCylinder(
+        name,
+        { height, diameterTop: width * 0.55, diameterBottom: width, tessellation: 10 },
+        scene,
+      )
+    : MeshBuilder.CreateBox(name, { width, depth, height }, scene);
+  body.position = new Vector3(x, ground + height * 0.5, z);
+  body.parent = root;
+  body.material = tower || height > 28 ? materials.glass : materials.concrete;
 
-  const beacon = MeshBuilder.CreateCylinder(
-    `${name}-beacon`,
-    { height: 0.5, diameter: Math.max(1.2, width * 0.24), tessellation: 12 },
+  const roof = MeshBuilder.CreateCylinder(
+    `${name}-roof`,
+    {
+      height: 1.4,
+      diameterTop: tower ? width * 0.55 : Math.max(width, depth) * 0.7,
+      diameterBottom: tower ? width * 0.65 : Math.max(width, depth) * 0.9,
+      tessellation: tower ? 10 : 4,
+    },
     scene,
   );
-  beacon.position = new Vector3(x, height - 6.1, z);
-  beacon.parent = parent;
-  beacon.material = materials.crystal;
+  roof.position = new Vector3(x, ground + height + 0.65, z);
+  roof.rotation.y = tower ? 0 : Math.PI / 4;
+  roof.parent = root;
+  roof.material = tower ? materials.emissive : materials.roof;
 }
 
-function createSkyportCity(
+function createCrownreach(
   scene: Scene,
   root: TransformNode,
   materials: WorldMaterials,
 ): void {
-  const district = new TransformNode("district-crownreach", scene);
-  district.parent = root;
-  district.position.z = 240;
-  createPlateau(scene, district, materials, "crownreach", new Vector3(0, -8, 115), 88, 35, 16);
-
-  const avenue = MeshBuilder.CreateBox(
-    "crownreach-main-avenue",
-    { width: 12, height: 0.7, depth: 145 },
-    scene,
-  );
-  avenue.position = new Vector3(0, -6.7, 115);
-  avenue.parent = district;
-  avenue.material = materials.road;
-
-  const crossAvenue = MeshBuilder.CreateBox(
-    "crownreach-cross-avenue",
-    { width: 145, height: 0.72, depth: 10 },
-    scene,
-  );
-  crossAvenue.position = new Vector3(0, -6.65, 115);
-  crossAvenue.parent = district;
-  crossAvenue.material = materials.road;
-
-  let buildingIndex = 0;
-  for (const x of [-58, -38, -20, 20, 38, 58]) {
-    for (const z of [62, 88, 114, 140, 166]) {
-      const variation = Math.abs(Math.sin(x * 0.13 + z * 0.07));
+  let index = 0;
+  for (const x of [-75, -52, -26, 26, 52, 75]) {
+    for (const z of [158, 188, 222, 256]) {
+      const variation = Math.abs(Math.sin(x * 0.17 + z * 0.08));
       createBuilding(
         scene,
-        district,
+        root,
         materials,
-        `crownreach-building-${buildingIndex}`,
+        `crownreach-building-${index}`,
         x,
         z,
-        10 + variation * 8,
-        10 + (1 - variation) * 8,
-        10 + variation * 34,
+        13 + variation * 7,
+        14 + (1 - variation) * 8,
+        12 + variation * 30,
       );
-      buildingIndex += 1;
+      index += 1;
     }
   }
+  createBuilding(scene, root, materials, "crownreach-zenith-tower", 0, 218, 24, 24, 92, true);
 
-  const tower = MeshBuilder.CreateCylinder(
-    "crownreach-zenith-tower",
-    { height: 76, diameterTop: 8, diameterBottom: 18, tessellation: 10 },
+  const plaza = MeshBuilder.CreateCylinder(
+    "crownreach-central-plaza",
+    { height: 0.7, diameter: 50, tessellation: 32 },
     scene,
   );
-  tower.position = new Vector3(0, 31, 116);
-  tower.parent = district;
-  tower.material = materials.glass;
-
-  const halo = MeshBuilder.CreateTorus(
-    "crownreach-halo",
-    { diameter: 25, thickness: 1, tessellation: 48 },
-    scene,
-  );
-  halo.position = new Vector3(0, 62, 116);
-  halo.rotation.x = Math.PI / 2;
-  halo.parent = district;
-  halo.material = materials.crystal;
-
-  for (const side of [-1, 1]) {
-    const dock = MeshBuilder.CreateBox(
-      `crownreach-dock-${side}`,
-      { width: 32, height: 2, depth: 8 },
-      scene,
-    );
-    dock.position = new Vector3(side * 98, -4, 105);
-    dock.parent = district;
-    dock.material = materials.metal;
-  }
+  plaza.position = new Vector3(0, terrainHeight(0, 218) + 0.35, 218);
+  plaza.parent = root;
+  plaza.material = materials.concrete;
 }
 
-function createVerdantTerraces(
+function createForgeDistrict(
   scene: Scene,
   root: TransformNode,
   materials: WorldMaterials,
 ): void {
-  const district = new TransformNode("district-verdant-terraces", scene);
-  district.parent = root;
-  createPlateau(scene, district, materials, "verdant-main", new Vector3(-145, 18, 255), 72, 42, 14);
-  createPlateau(scene, district, materials, "verdant-high", new Vector3(-204, 47, 322), 48, 34, 12);
-
-  for (let index = 0; index < 42; index += 1) {
-    const angle = index * 2.399;
-    const radius = 12 + (index % 7) * 7;
-    const x = -145 + Math.cos(angle) * radius;
-    const z = 255 + Math.sin(angle) * radius;
-    const trunk = MeshBuilder.CreateCylinder(
-      `verdant-tree-trunk-${index}`,
-      { height: 5, diameter: 1.1, tessellation: 6 },
+  for (let index = 0; index < 11; index += 1) {
+    const angle = (index / 11) * Math.PI * 2;
+    const x = 235 + Math.cos(angle) * (35 + (index % 3) * 11);
+    const z = 400 + Math.sin(angle) * (30 + (index % 2) * 18);
+    const height = 13 + (index % 4) * 6;
+    const tank = MeshBuilder.CreateCylinder(
+      `forgeworks-tank-${index}`,
+      { height, diameter: 12 + (index % 3) * 4, tessellation: 14 },
       scene,
     );
-    trunk.position = new Vector3(x, 21, z);
-    trunk.parent = district;
+    tank.position = new Vector3(x, terrainHeight(x, z) + height * 0.5, z);
+    tank.parent = root;
+    tank.material = materials.metal;
+  }
+  for (const offset of [-24, 24]) {
+    createBuilding(scene, root, materials, `forgeworks-stack-${offset}`, 235 + offset, 400, 11, 11, 56, true);
+  }
+}
+
+function createVillage(
+  scene: Scene,
+  root: TransformNode,
+  materials: WorldMaterials,
+): void {
+  for (let index = 0; index < 18; index += 1) {
+    const row = Math.floor(index / 6);
+    const column = index % 6;
+    const x = -185 + column * 18 + (row % 2) * 7;
+    const z = 425 + row * 25;
+    createBuilding(
+      scene,
+      root,
+      materials,
+      `ridge-village-home-${index}`,
+      x,
+      z,
+      10 + (index % 3) * 2,
+      12,
+      7 + (index % 2) * 3,
+    );
+  }
+}
+
+function createForest(
+  scene: Scene,
+  root: TransformNode,
+  materials: WorldMaterials,
+): void {
+  for (let index = 0; index < 150; index += 1) {
+    const angle = index * 2.399963;
+    const radius = 95 + (index % 17) * 14;
+    const x = Math.cos(angle) * radius - 75;
+    const z = worldCenterZ + Math.sin(angle) * radius + 105;
+    if (Math.hypot(x, z - 220) < 150 || Math.hypot(x - 235, z - 400) < 100) continue;
+    const ground = terrainHeight(x, z);
+    if (ground < terrainBase - 0.5) continue;
+
+    const height = 7 + (index % 5);
+    const trunk = MeshBuilder.CreateCylinder(
+      `wild-tree-trunk-${index}`,
+      { height, diameter: 1.3, tessellation: 6 },
+      scene,
+    );
+    trunk.position = new Vector3(x, ground + height * 0.5, z);
+    trunk.parent = root;
     trunk.material = materials.trunk;
 
     const crown = MeshBuilder.CreateSphere(
-      `verdant-tree-crown-${index}`,
-      { diameter: 5 + (index % 3), segments: 5 },
+      `wild-tree-crown-${index}`,
+      { diameter: 7 + (index % 4), segments: 5 },
       scene,
     );
-    crown.position = new Vector3(x, 25, z);
-    crown.scaling.y = 1.4;
-    crown.parent = district;
-    crown.material = materials.foliage;
+    crown.position = new Vector3(x, ground + height + 2.8, z);
+    crown.scaling.y = 1.35;
+    crown.parent = root;
+    crown.material = index % 3 === 0 ? materials.foliageDark : materials.foliage;
   }
 }
 
-function createForgeworks(
+function createLandmarks(
   scene: Scene,
   root: TransformNode,
   materials: WorldMaterials,
 ): void {
-  const district = new TransformNode("district-forgeworks", scene);
-  district.parent = root;
-  createPlateau(scene, district, materials, "forgeworks", new Vector3(155, -3, 274), 68, 46, 12);
-
-  for (let index = 0; index < 9; index += 1) {
-    const angle = (index / 9) * Math.PI * 2;
-    const tank = MeshBuilder.CreateCylinder(
-      `forge-tank-${index}`,
-      { height: 15 + (index % 3) * 6, diameter: 10 + (index % 2) * 5, tessellation: 12 },
-      scene,
-    );
-    tank.position = new Vector3(
-      155 + Math.cos(angle) * 38,
-      5 + (index % 3) * 3,
-      274 + Math.sin(angle) * 38,
-    );
-    tank.parent = district;
-    tank.material = materials.metal;
-  }
-
-  for (const side of [-1, 1]) {
-    const stack = MeshBuilder.CreateCylinder(
-      `forge-stack-${side}`,
-      { height: 52, diameterTop: 5, diameterBottom: 10, tessellation: 10 },
-      scene,
-    );
-    stack.position = new Vector3(155 + side * 22, 23, 274);
-    stack.parent = district;
-    stack.material = materials.metal;
-  }
-}
-
-function createAncientReach(
-  scene: Scene,
-  root: TransformNode,
-  materials: WorldMaterials,
-): void {
-  const district = new TransformNode("district-ancient-reach", scene);
-  district.parent = root;
-  createPlateau(scene, district, materials, "ancient-reach", new Vector3(12, 34, 430), 78, 58, 15);
-
-  for (let index = 0; index < 11; index += 1) {
-    const angle = (index / 11) * Math.PI * 2;
-    const pillar = MeshBuilder.CreateCylinder(
-      `reach-pillar-${index}`,
-      { height: 18 + (index % 4) * 5, diameter: 4, tessellation: 6 },
-      scene,
-    );
-    pillar.position = new Vector3(
-      12 + Math.cos(angle) * 44,
-      46 + (index % 4) * 2.5,
-      430 + Math.sin(angle) * 44,
-    );
-    pillar.rotation.z = (index % 2 === 0 ? 1 : -1) * 0.08;
-    pillar.parent = district;
-    pillar.material = materials.stone;
-  }
-
-  const gate = MeshBuilder.CreateTorus(
-    "ancient-reach-gate",
-    { diameter: 54, thickness: 3.2, tessellation: 64 },
+  const arch = MeshBuilder.CreateTorus(
+    "ancient-reach-stone-arch",
+    { diameter: 52, thickness: 5, tessellation: 48 },
     scene,
   );
-  gate.position = new Vector3(12, 66, 430);
-  gate.parent = district;
-  gate.material = materials.crystal;
-}
+  arch.position = new Vector3(55, terrainHeight(55, 640) + 22, 640);
+  arch.parent = root;
+  arch.material = materials.rock;
 
-function createAirLanes(
-  scene: Scene,
-  root: TransformNode,
-  materials: WorldMaterials,
-): void {
-  for (let index = 0; index < 10; index += 1) {
-    const ring = MeshBuilder.CreateTorus(
-      `current-gate-${index}`,
-      { diameter: 18, thickness: 0.42, tessellation: 32 },
+  for (let index = 0; index < 7; index += 1) {
+    const x = 55 + (index - 3) * 13;
+    const z = 650 + Math.abs(index - 3) * 5;
+    const pillar = MeshBuilder.CreateCylinder(
+      `ancient-reach-pillar-${index}`,
+      { height: 18 + (index % 3) * 6, diameter: 4.5, tessellation: 7 },
       scene,
     );
-    ring.position = new Vector3(Math.sin(index * 0.72) * 15, 2 + Math.sin(index) * 5, 20 + index * 38);
-    ring.parent = root;
-    ring.material = materials.lane;
+    pillar.position = new Vector3(x, terrainHeight(x, z) + 10, z);
+    pillar.parent = root;
+    pillar.material = materials.rock;
   }
-}
 
-function createCloudBanks(
-  scene: Scene,
-  root: TransformNode,
-  materials: WorldMaterials,
-): void {
-  const banks = [
-    new Vector3(-220, -48, 80),
-    new Vector3(230, 62, 120),
-    new Vector3(-280, 70, 330),
-    new Vector3(270, -55, 410),
-  ];
-
-  banks.forEach((center, bankIndex) => {
-    for (let index = 0; index < 7; index += 1) {
-      const cloud = MeshBuilder.CreateSphere(
-        `cloud-bank-${bankIndex}-${index}`,
-        { diameter: 48 + (index % 3) * 12, segments: 6 },
-        scene,
-      );
-      cloud.position = center.add(new Vector3((index - 3) * 25, (index % 2) * 6, Math.sin(index) * 22));
-      cloud.scaling = new Vector3(1.7, 0.34, 1);
-      cloud.parent = root;
-      cloud.material = materials.cloud;
-    }
-  });
+  const lighthouse = MeshBuilder.CreateCylinder(
+    "south-coast-lighthouse",
+    { height: 46, diameterTop: 7, diameterBottom: 13, tessellation: 12 },
+    scene,
+  );
+  lighthouse.position = new Vector3(-280, terrainHeight(-280, 35) + 23, 35);
+  lighthouse.parent = root;
+  lighthouse.material = materials.concrete;
+  const beacon = MeshBuilder.CreateSphere(
+    "south-coast-lighthouse-beacon",
+    { diameter: 7, segments: 12 },
+    scene,
+  );
+  beacon.position = lighthouse.position.add(new Vector3(0, 24, 0));
+  beacon.parent = root;
+  beacon.material = materials.emissive;
 }
 
 function createTraffic(
@@ -375,52 +489,43 @@ function createTraffic(
   materials: WorldMaterials,
 ): TransformNode[] {
   const traffic: TransformNode[] = [];
-  for (let index = 0; index < 7; index += 1) {
-    const craft = new TransformNode(`ambient-skiff-${index}`, scene);
-    craft.parent = root;
-    const hull = MeshBuilder.CreateCapsule(
-      `ambient-skiff-hull-${index}`,
-      { height: 5, radius: 0.75, tessellation: 8 },
+  for (let index = 0; index < 12; index += 1) {
+    const vehicle = new TransformNode(`road-vehicle-${index}`, scene);
+    vehicle.parent = root;
+    const body = MeshBuilder.CreateBox(
+      `road-vehicle-body-${index}`,
+      { width: 3.2, height: 1.3, depth: 5.5 },
       scene,
     );
-    hull.rotation.x = Math.PI / 2;
-    hull.parent = craft;
-    hull.material = materials.metal;
-    const sail = MeshBuilder.CreateBox(
-      `ambient-skiff-sail-${index}`,
-      { width: 5, height: 0.12, depth: 1.1 },
-      scene,
-    );
-    sail.parent = craft;
-    sail.material = materials.lane;
-    traffic.push(craft);
+    body.parent = vehicle;
+    body.material = index % 3 === 0 ? materials.emissive : materials.metal;
+    traffic.push(vehicle);
   }
   return traffic;
 }
 
 export function createHighDriftsWorld(scene: Scene): HighDriftsWorld {
   const materials = createMaterials(scene);
-  const root = new TransformNode("authored-high-drifts-region", scene);
-  createSkyportCity(scene, root, materials);
-  createVerdantTerraces(scene, root, materials);
-  createForgeworks(scene, root, materials);
-  createAncientReach(scene, root, materials);
-  createAirLanes(scene, root, materials);
-  createCloudBanks(scene, root, materials);
+  const root = new TransformNode("continuous-high-drifts-region", scene);
+  createTerrain(scene, root, materials);
+  createRoadNetwork(scene, root, materials);
+  createCrownreach(scene, root, materials);
+  createForgeDistrict(scene, root, materials);
+  createVillage(scene, root, materials);
+  createForest(scene, root, materials);
+  createLandmarks(scene, root, materials);
   const traffic = createTraffic(scene, root, materials);
   let elapsed = 0;
 
   return {
     update(_position) {
       elapsed += Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
-      traffic.forEach((craft, index) => {
-        const phase = elapsed * (0.11 + index * 0.008) + index * 0.9;
-        craft.position.set(
-          Math.sin(phase) * (115 + index * 13),
-          15 + Math.sin(phase * 1.7) * 22,
-          225 + Math.cos(phase) * (150 + index * 10),
-        );
-        craft.rotation.y = phase + Math.PI;
+      traffic.forEach((vehicle, index) => {
+        const phase = elapsed * (0.12 + (index % 4) * 0.012) + index * 0.48;
+        const z = -45 + ((phase * 95 + index * 58) % 760);
+        const x = Math.sin(z * 0.008) * 22 + (index % 2 === 0 ? -5 : 5);
+        vehicle.position.set(x, terrainHeight(x, z) + 1.2, z);
+        vehicle.rotation.y = Math.atan2(Math.cos(z * 0.008) * 0.176, 1);
       });
     },
     dispose() {

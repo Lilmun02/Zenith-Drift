@@ -64,24 +64,6 @@ function createShip(scene: Scene): AbstractMesh {
   return root;
 }
 
-function createCurrentFilament(scene: Scene, x: number, color: Color3): void {
-  const path: Vector3[] = [];
-  for (let z = flightConfig.currentStartZ; z <= flightConfig.currentEndZ; z += 2) {
-    path.push(new Vector3(x + Math.sin(z * 0.18) * 0.35, Math.cos(z * 0.13) * 0.4, z));
-  }
-
-  const filament = MeshBuilder.CreateTube(
-    `current-filament-${x}`,
-    { path, radius: 0.11, tessellation: 8, cap: 0 },
-    scene,
-  );
-  const material = new StandardMaterial(`current-material-${x}`, scene);
-  material.diffuseColor = color;
-  material.emissiveColor = color.scale(0.85);
-  material.disableLighting = true;
-  filament.material = material;
-}
-
 function updateRibbon(
   ribbon: LinesMesh,
   shipPosition: Vector3,
@@ -121,9 +103,6 @@ export function createPrototypeScene(engine: Engine): PlayableScene {
   sunMaterial.emissiveColor = new Color3(1, 0.48, 0.16);
   sunMaterial.disableLighting = true;
   sun.material = sunMaterial;
-
-  createCurrentFilament(scene, -flightConfig.currentHalfWidth, new Color3(0.15, 0.75, 0.9));
-  createCurrentFilament(scene, flightConfig.currentHalfWidth, new Color3(0.75, 0.3, 0.88));
 
   const ship = createShip(scene);
   const world = createHighDriftsWorld(scene);
@@ -181,3 +160,4 @@ export function createPrototypeScene(engine: Engine): PlayableScene {
     emitTelemetry: () => createTelemetry(state, flightConfig),
   };
 }
+

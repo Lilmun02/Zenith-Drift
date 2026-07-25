@@ -8,11 +8,12 @@ const neutralInput: FlightInput = { pitch: 0, roll: 0, yaw: 0, throttle: 0, weav
 
 test("neutral flight advances the ship without producing invalid values", () => {
   const state = createInitialFlightState();
+  const startingZ = state.position.z;
   for (let index = 0; index < 240; index += 1) {
     stepFlight(state, neutralInput, flightConfig, flightConfig.fixedStepSeconds);
   }
 
-  assert.ok(state.position.z > -2);
+  assert.ok(state.position.z > startingZ);
   assert.ok(Number.isFinite(state.position.x));
   assert.ok(Number.isFinite(state.velocity.z));
 });
@@ -57,3 +58,4 @@ test("releasing a charged weave produces one impulse and clears tension", () => 
   assert.equal(state.weaveTension, 0);
   assert.ok(speedAfterRelease > speedBeforeRelease);
 });
+
