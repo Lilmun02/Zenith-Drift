@@ -16,8 +16,7 @@ import type { LinesMesh } from "@babylonjs/core/Meshes/linesMesh";
 import { flightConfig } from "../config/flightConfig";
 import { createTelemetry, createInitialFlightState, stepFlight } from "../rules/flightRules";
 import type { FlightInput, FlightState, FlightTelemetry } from "../rules/flightTypes";
-import { createHighDriftsWorld } from "../world/createHighDriftsWorld";
-import { createCrownreachScenery } from "../world/createCrownreachScenery";
+import { createHighDriftsWorldV2 } from "../world/createHighDriftsWorldV2";
 
 export interface PlayableScene { scene: Scene; state: FlightState; step: (input: FlightInput, dt: number) => void; syncPresentation: () => void; emitTelemetry: () => FlightTelemetry; }
 
@@ -38,12 +37,12 @@ function createShip(scene: Scene): AbstractMesh {
 function updateRibbon(ribbon: LinesMesh, shipPosition: Vector3, currentX: number, scene: Scene): LinesMesh { return MeshBuilder.CreateLines(ribbon.name, { points: [shipPosition, new Vector3(currentX, 0, shipPosition.z + 4)], instance: ribbon }, scene); }
 
 export function createPrototypeScene(engine: Engine): PlayableScene {
-  const scene = new Scene(engine); scene.clearColor = new Color4(0.055, 0.11, 0.19, 1); scene.ambientColor = new Color3(0.12, 0.18, 0.26); scene.fogMode = Scene.FOGMODE_EXP2; scene.fogDensity = 0.0017; scene.fogColor = new Color3(0.18, 0.31, 0.43);
-  const light = new HemisphericLight("sky-light", new Vector3(0.15, 1, 0.15), scene); light.intensity = 0.52; light.diffuse = new Color3(0.45, 0.66, 0.82); light.groundColor = new Color3(0.06, 0.09, 0.13);
-  const sunLight = new DirectionalLight("sun-light", new Vector3(-0.5, -0.72, 0.28), scene); sunLight.intensity = 1.35; sunLight.diffuse = new Color3(1, 0.68, 0.4);
+  const scene = new Scene(engine); scene.clearColor = new Color4(0.025, 0.055, 0.095, 1); scene.ambientColor = new Color3(0.1, 0.15, 0.2); scene.fogMode = Scene.FOGMODE_EXP2; scene.fogDensity = 0.00135; scene.fogColor = new Color3(0.12, 0.22, 0.3);
+  const light = new HemisphericLight("sky-light", new Vector3(0.15, 1, 0.15), scene); light.intensity = 0.68; light.diffuse = new Color3(0.55, 0.7, 0.82); light.groundColor = new Color3(0.07, 0.09, 0.11);
+  const sunLight = new DirectionalLight("sun-light", new Vector3(-0.5, -0.72, 0.28), scene); sunLight.intensity = 1.5; sunLight.diffuse = new Color3(1, 0.72, 0.48);
   const sun = MeshBuilder.CreateSphere("distant-sun", { diameter: 28, segments: 20 }, scene); sun.position = new Vector3(-260, 115, 390); const sunMaterial = new StandardMaterial("sun-material", scene); sunMaterial.diffuseColor = new Color3(1, 0.42, 0.12); sunMaterial.emissiveColor = new Color3(1, 0.28, 0.06); sunMaterial.disableLighting = true; sun.material = sunMaterial;
-  const ship = createShip(scene); const world = createHighDriftsWorld(scene); createCrownreachScenery(scene);
-  const camera = new FollowCamera("flight-camera", new Vector3(0, 4, -20), scene); camera.lockedTarget = ship; camera.radius = 13.5; camera.heightOffset = 4.2; camera.rotationOffset = 180; camera.fov = 0.9; camera.cameraAcceleration = 0.12; camera.maxCameraSpeed = 55; camera.maxZ = 1400; camera.attachControl(true);
+  const ship = createShip(scene); const world = createHighDriftsWorldV2(scene);
+  const camera = new FollowCamera("flight-camera", new Vector3(0, 4, -20), scene); camera.lockedTarget = ship; camera.radius = 14.5; camera.heightOffset = 4.6; camera.rotationOffset = 180; camera.fov = 0.92; camera.cameraAcceleration = 0.12; camera.maxCameraSpeed = 55; camera.maxZ = 1600; camera.attachControl(true);
   let leftRibbon = MeshBuilder.CreateLines("left-weave-ribbon", { points: [Vector3.Zero(), new Vector3(-flightConfig.currentHalfWidth, 0, 4)], updatable: true }, scene); let rightRibbon = MeshBuilder.CreateLines("right-weave-ribbon", { points: [Vector3.Zero(), new Vector3(flightConfig.currentHalfWidth, 0, 4)], updatable: true }, scene); leftRibbon.color = new Color3(0.18, 0.88, 1); rightRibbon.color = new Color3(0.72, 0.28, 1); leftRibbon.isVisible = false; rightRibbon.isVisible = false;
   const state = createInitialFlightState(); world.update(state.position);
   const syncPresentation = () => { ship.position.set(state.position.x, state.position.y, state.position.z); ship.rotation.set(-state.pitch, state.yaw, -state.roll); sun.position.set(state.position.x - 260, state.position.y + 115, state.position.z + 390); world.update(state.position); const shipPosition = ship.getAbsolutePosition(); leftRibbon = updateRibbon(leftRibbon, shipPosition, -flightConfig.currentHalfWidth, scene); rightRibbon = updateRibbon(rightRibbon, shipPosition, flightConfig.currentHalfWidth, scene); leftRibbon.isVisible = state.weaveActive && state.weaveTension > 0; rightRibbon.isVisible = leftRibbon.isVisible; };
