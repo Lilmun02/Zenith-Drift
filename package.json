@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@babylonjs/core": "^8.26.1",
+    "@babylonjs/loaders": "^8.26.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
@@ -23,4 +24,3 @@
     "vite": "^7.1.4"
   }
 }
-
