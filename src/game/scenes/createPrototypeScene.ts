@@ -43,7 +43,6 @@ export function createPrototypeScene(engine: Engine): PlayableScene {
   const sun = MeshBuilder.CreateSphere("distant-sun", { diameter: 28, segments: 20 }, scene); sun.position = new Vector3(-260, 115, 390); const sunMaterial = new StandardMaterial("sun-material", scene); sunMaterial.diffuseColor = new Color3(1, 0.42, 0.12); sunMaterial.emissiveColor = new Color3(1, 0.28, 0.06); sunMaterial.disableLighting = true; sun.material = sunMaterial;
   const ship = createShip(scene);
 
-  void loadProductionAsset(scene, new URL("../../assets/futuristic_city.glb", import.meta.url).href,);
   void loadProductionAsset(scene, {
     url: new URL("../../assets/futuristic_city.glb", import.meta.url).href,
     name: "futuristic-city",
